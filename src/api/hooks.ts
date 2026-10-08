@@ -1,12 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from './client'
-import { rememberJob } from '../lib/recentJobs'
 import type {
   AnalysisView,
   CreateProjectRequest,
   EntryPointView,
   IndexResult,
   JobStatus,
+  JobSummaryView,
   JobView,
   NodeView,
   Project,
@@ -26,6 +26,7 @@ export const keys = {
   entryPoints: (projectId: number) => ['projects', projectId, 'entry-points'] as const,
   sinks: (projectId: number) => ['projects', projectId, 'sinks'] as const,
   sinkPaths: (projectId: number, maxDepth: number) => ['projects', projectId, 'sink-paths', maxDepth] as const,
+  projectAnalyses: (projectId: number) => ['projects', projectId, 'analyses'] as const,
   analysis: (jobId: number) => ['analyses', jobId] as const,
   traces: (jobId: number) => ['analyses', jobId, 'traces'] as const,
 }
@@ -90,10 +91,20 @@ export function useSinkPaths(projectId: number, maxDepth = 12) {
 
 // ---- 분석 ----
 
+export function useProjectAnalyses(projectId: number) {
+  return useQuery({
+    queryKey: keys.projectAnalyses(projectId),
+    queryFn: () => api.get<JobSummaryView[]>(`/api/projects/${projectId}/analyses`),
+    // 진행 중인 작업이 있으면 목록도 갱신한다
+    refetchInterval: (query) => (query.state.data?.some((s) => isActive(s.job.status)) ? POLL_MS : false),
+  })
+}
+
 export function useStartAnalysis(projectId: number) {
+  const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (request: StartAnalysisRequest) => api.post<JobView>(`/api/projects/${projectId}/analyses`, request),
-    onSuccess: (job) => rememberJob(projectId, job.id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: keys.projectAnalyses(projectId) }),
   })
 }
 

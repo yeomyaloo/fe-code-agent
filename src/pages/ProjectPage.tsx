@@ -4,6 +4,7 @@ import {
   useEntryPoints,
   useIndexProject,
   useProject,
+  useProjectAnalyses,
   useSinkPaths,
   useSinks,
   useStartAnalysis,
@@ -11,9 +12,8 @@ import {
 } from '../api/hooks'
 import type { IndexResult, SinkPathView } from '../api/types'
 import { Badge, Button, Card, Code, Empty, ErrorBox, Field, inputClass, Loading, Stat, Tabs } from '../components/ui'
-import { CategoryBadge } from '../components/status'
-import { formatDateTime, formatNumber, location, shortName } from '../lib/format'
-import { recentJobs } from '../lib/recentJobs'
+import { CategoryBadge, JobStatusBadge } from '../components/status'
+import { formatDateTime, formatNumber, formatTokens, location, shortName } from '../lib/format'
 
 type GraphTab = 'paths' | 'entry-points' | 'sinks'
 
@@ -90,7 +90,7 @@ export default function ProjectPage() {
       </Card>
 
       <StartAnalysisCard projectId={projectId} />
-      <RecentAnalyses projectId={projectId} />
+      <AnalysisList projectId={projectId} />
     </div>
   )
 }
@@ -267,7 +267,7 @@ function StartAnalysisCard({ projectId }: { projectId: number }) {
           <input
             type="number"
             min={10_000}
-            step={100_000}
+            step={10_000}
             className={inputClass}
             value={budgetTokens}
             onChange={(e) => setBudgetTokens(Number(e.target.value))}
@@ -284,45 +284,54 @@ function StartAnalysisCard({ projectId }: { projectId: number }) {
   )
 }
 
-function RecentAnalyses({ projectId }: { projectId: number }) {
-  const navigate = useNavigate()
-  const ids = recentJobs(projectId)
-  const [jobId, setJobId] = useState('')
+function AnalysisList({ projectId }: { projectId: number }) {
+  const analyses = useProjectAnalyses(projectId)
 
   return (
-    <Card title="③ 분석 결과">
-      {ids.length > 0 ? (
-        <div className="flex flex-wrap gap-2">
-          {ids.map((id) => (
-            <Link
-              key={id}
-              to={`/analyses/${id}`}
-              className="rounded-lg border border-zinc-200 px-3 py-1.5 text-sm hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-800"
-            >
-              분석 #{id}
-            </Link>
-          ))}
+    <Card title={`③ 분석 결과 ${analyses.data ? analyses.data.length : ''}`}>
+      {analyses.isPending && <Loading />}
+      <ErrorBox error={analyses.error} />
+      {analyses.data?.length === 0 && <Empty>아직 분석한 적이 없어요.</Empty>}
+      {analyses.data && analyses.data.length > 0 && (
+        <div className="-mx-4 -mb-4 overflow-x-auto">
+          <table className="w-full min-w-[640px] text-sm">
+            <thead className="border-y border-zinc-200 bg-zinc-50 text-left text-xs text-zinc-500 dark:border-zinc-800 dark:bg-zinc-800/40">
+              <tr>
+                <th className="px-4 py-2 font-medium">분석</th>
+                <th className="px-4 py-2 font-medium">상태</th>
+                <th className="px-4 py-2 font-medium">시작</th>
+                <th className="px-4 py-2 text-right font-medium">할 일</th>
+                <th className="px-4 py-2 font-medium">발견</th>
+                <th className="px-4 py-2 text-right font-medium">토큰</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
+              {analyses.data.map(({ job, intentions, intentionsFinished, findings }) => (
+                <tr key={job.id} className="hover:bg-zinc-50 dark:hover:bg-zinc-800/40">
+                  <td className="px-4 py-2">
+                    <Link to={`/analyses/${job.id}`} className="font-medium text-orange-700 hover:underline dark:text-orange-400">
+                      #{job.id}
+                    </Link>
+                  </td>
+                  <td className="px-4 py-2"><JobStatusBadge status={job.status} /></td>
+                  <td className="px-4 py-2 text-zinc-500">{formatDateTime(job.startedAt)}</td>
+                  <td className="px-4 py-2 text-right tabular-nums">{intentionsFinished} / {intentions}</td>
+                  <td className="px-4 py-2">
+                    <div className="flex flex-wrap gap-1">
+                      {findings.CONFIRMED > 0 && <Badge tone="red">확정 {findings.CONFIRMED}</Badge>}
+                      {findings.OPEN > 0 && <Badge>검증 대기 {findings.OPEN}</Badge>}
+                      {findings.UNCERTAIN > 0 && <Badge tone="yellow">판단 불가 {findings.UNCERTAIN}</Badge>}
+                      {findings.REJECTED > 0 && <Badge tone="green">기각 {findings.REJECTED}</Badge>}
+                      {Object.values(findings).every((n) => n === 0) && <span className="text-zinc-400">-</span>}
+                    </div>
+                  </td>
+                  <td className="px-4 py-2 text-right text-zinc-500 tabular-nums">{formatTokens(job.usedTokens)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
-      ) : (
-        <p className="text-sm text-zinc-500">이 브라우저에서 시작한 분석이 아직 없어요.</p>
       )}
-      <form
-        className="mt-3 flex gap-2"
-        onSubmit={(e) => {
-          e.preventDefault()
-          if (jobId) navigate(`/analyses/${jobId}`)
-        }}
-      >
-        <input
-          className={`${inputClass} max-w-40`}
-          type="number"
-          min={1}
-          placeholder="분석 번호"
-          value={jobId}
-          onChange={(e) => setJobId(e.target.value)}
-        />
-        <Button type="submit">열기</Button>
-      </form>
     </Card>
   )
 }

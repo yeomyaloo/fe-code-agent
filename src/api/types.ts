@@ -84,6 +84,16 @@ export interface JobView {
   finishedAt: string | null
 }
 
+/** 프로젝트별 분석 목록의 한 줄 */
+export interface JobSummaryView {
+  job: JobView
+  intentions: number
+  /** 끝난(DONE / FAILED) 할 일 수 */
+  intentionsFinished: number
+  /** 발견 상태별 개수 */
+  findings: Record<'OPEN' | 'CONFIRMED' | 'REJECTED' | 'UNCERTAIN', number>
+}
+
 export type NodeKind = 'GOAL' | 'INTENTION' | 'FACT' | 'FINDING' | 'HINT'
 export type NodeStatus = 'OPEN' | 'CLAIMED' | 'DONE' | 'FAILED' | 'CONFIRMED' | 'REJECTED' | 'UNCERTAIN'
 
