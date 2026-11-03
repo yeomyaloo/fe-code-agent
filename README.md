@@ -16,7 +16,11 @@
 
 ![분석 결과](docs/screenshots/analysis-findings.png)
 
-**에이전트 기록**: Claude가 무슨 생각을 했고 어떤 도구를 불렀는지 순서대로
+**Planner와 할 일**: Planner(LLM)의 회차별 계획 요약, 할 일마다 만든 회차·지시·선행 할 일·Worker 결론
+
+![Planner와 할 일](docs/screenshots/analysis-plan.png)
+
+**에이전트 기록**: Planner·Worker가 무슨 생각을 했고 어떤 도구를 불렀는지 순서대로
 
 ![에이전트 기록](docs/screenshots/analysis-traces.png)
 
@@ -32,8 +36,8 @@
 | 화면 | 하는 일 | 쓰는 API |
 |---|---|---|
 | **프로젝트** `/` | Git 주소나 서버 폴더 경로로 저장소 등록, 등록된 저장소 목록 | `POST /api/projects`, `GET /api/projects` |
-| **프로젝트 상세** `/projects/:id` | 최신 커밋 받기, 코드 그래프 만들기(파일·메서드·진입점·위험 지점 통계), 진입점 → 위험 지점 경로·진입점·위험 지점 조회, 분석 시작, 분석 목록(상태·할 일·발견 개수·토큰) | `/sync`, `/index`, `/code-graph/*`, `POST·GET /analyses` |
-| **분석** `/analyses/:id` | 진행 상황(2초마다 갱신), 토큰 사용량, 발견 목록(Verifier 판정·근거 코드·공격 예시), 사람 검토, 할 일별 결론, 에이전트 기록 타임라인, HTML·SARIF 보고서 | `GET /analyses/:id`, `/traces`, `/findings/:id/review`, `/verify`, `/report.*` |
+| **프로젝트 상세** `/projects/:id` | 최신 커밋 받기, 코드 그래프 만들기(파일·메서드·진입점·위험 지점 통계), 진입점 → 위험 지점 경로·진입점·위험 지점 조회, 분석 시작(계획 방식: LLM Planner / 경로마다 기계적으로), 분석 목록(상태·할 일·발견 개수·토큰) | `/sync`, `/index`, `/code-graph/*`, `POST·GET /analyses` |
+| **분석** `/analyses/:id` | 진행 상황(2초마다 갱신), 토큰 사용량, 발견 목록(Verifier 판정·근거 코드·공격 예시), 사람 검토, Planner 회차별 계획과 할 일별 결론, 에이전트 기록 타임라인, HTML·SARIF 보고서 | `GET /analyses/:id`, `/traces`, `/findings/:id/review`, `/verify`, `/report.*` |
 
 **에이전트 기록** 탭에서는 에이전트가 한 일을 순서대로 볼 수 있다. Claude가 무슨 생각을 했고, 어떤 도구를 불렀고, 무슨 결과를 받았는지가 나온다. 분석이 진행 중이면 새 기록을 자동으로 따라간다.
 
@@ -77,7 +81,7 @@ npm run screenshots               # README 스크린샷 다시 만들기
 npx playwright show-report        # 실패 시 HTML 리포트와 trace 보기
 ```
 
-검사하는 것: 저장소 목록 정렬, Git 등록과 오류 메시지, 코드 그래프 통계와 경로 표시, 분석 목록, 분석 시작, 발견 정렬(확정 → 검증 대기 → 판단 불가, 기각은 숨김), 사람 검토 저장, 할 일 결론, 에이전트 기록 타임라인, 진행 중 작업 자동 갱신, 보고서 링크, 백엔드가 꺼졌을 때 안내 문구.
+검사하는 것: 저장소 목록 정렬, Git 등록과 오류 메시지, 코드 그래프 통계와 경로 표시, 분석 목록, 분석 시작(계획 방식 선택), 발견 정렬(확정 → 검증 대기 → 판단 불가, 기각은 숨김), 사람 검토 저장, Planner 회차별 결론과 후속 할 일, 할 일 결론, 에이전트 기록 타임라인, 진행 중 작업 자동 갱신, 보고서 링크, 백엔드가 꺼졌을 때 안내 문구.
 
 ### Playwright MCP (Claude Code용)
 

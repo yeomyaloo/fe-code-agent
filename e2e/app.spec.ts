@@ -77,8 +77,19 @@ test.describe('프로젝트 상세', () => {
 
   test('분석을 시작하면 분석 화면으로 이동한다', async ({ page }) => {
     await page.goto('/projects/1')
+    const request = page.waitForRequest((r) => r.url().endsWith('/api/projects/1/analyses') && r.method() === 'POST')
     await page.getByRole('button', { name: '분석 시작' }).click()
+    expect((await request).postDataJSON()).toEqual({ planner: 'llm', maxIntentions: 10, budgetTokens: 2_000_000 })
     await expect(page).toHaveURL(/\/analyses\/7$/)
+  })
+
+  test('경로 계획을 고르면 할 일 상한 기본값이 바뀐다', async ({ page }) => {
+    await page.goto('/projects/1')
+    await page.getByLabel(/계획 방식/).selectOption('paths')
+    await expect(page.getByLabel(/조사할 경로 수/)).toHaveValue('5')
+    const request = page.waitForRequest((r) => r.url().endsWith('/api/projects/1/analyses') && r.method() === 'POST')
+    await page.getByRole('button', { name: '분석 시작' }).click()
+    expect((await request).postDataJSON()).toMatchObject({ planner: 'paths', maxIntentions: 5 })
   })
 })
 
@@ -113,16 +124,36 @@ test.describe('분석 화면', () => {
 
   test('할 일마다 Worker 결론과 토큰 사용량을 보여준다', async ({ page }) => {
     await page.goto('/analyses/7')
-    await page.getByRole('tab', { name: '할 일 3' }).click()
-    const sql = page.getByRole('listitem').filter({ hasText: '/api/users/search' })
+    await page.getByRole('tab', { name: '할 일 4' }).click()
+    const sql = page.getByRole('listitem').filter({ hasText: '사용자 검색 API의 SQL 인젝션 경로' })
     await expect(sql).toContainText('판정: 취약')
     await expect(sql).toContainText('7단계')
+    await expect(sql).toContainText('계획 1회차')
+    await expect(sql).toContainText('지시: GET /api/users/search 의 name')
+  })
+
+  test('LLM 계획이면 Planner 회차별 결론과 후속 할 일을 보여준다', async ({ page }) => {
+    await page.goto('/analyses/7')
+    await expect(page.getByText('LLM 계획 2회차')).toBeVisible()
+    await page.getByRole('tab', { name: '할 일 4' }).click()
+    await expect(page.getByText('계획 종료')).toBeVisible()
+    await expect(page.getByText(/끝낸 이유: 위험 경로 3개를 모두 조사했고/)).toBeVisible()
+    await expect(page.getByText('1회차', { exact: true })).toBeVisible()
+    await expect(page.getByText(/후속 조사를 하나 더했고/)).toBeVisible()
+    const followUp = page.getByRole('listitem').filter({ hasText: '명령 실행 코드가 다른 곳에서 호출되는지' })
+    await expect(followUp).toContainText('계획 2회차')
+    await expect(followUp).toContainText('선행 #402')
+
+    await page.getByRole('button', { name: '계획 기록 보기' }).click()
+    await expect(page.getByRole('combobox')).toHaveValue('400')
+    await expect(page.locator('ol > li')).toHaveCount(6)
+    await expect(page.locator('ol > li').nth(3)).toContainText('add_intention')
   })
 
   test('에이전트 기록 타임라인에서 생각과 도구 호출을 순서대로 보여준다', async ({ page }) => {
     await page.goto('/analyses/7')
-    await page.getByRole('tab', { name: '할 일 3' }).click()
-    await page.getByRole('listitem').filter({ hasText: '/api/users/search' }).getByRole('button', { name: '기록 보기' }).click()
+    await page.getByRole('tab', { name: '할 일 4' }).click()
+    await page.getByRole('listitem').filter({ hasText: '사용자 검색 API의 SQL 인젝션 경로' }).getByRole('button', { name: '기록 보기', exact: true }).click()
 
     await expect(page.getByRole('combobox')).toHaveValue('401')
     const items = page.locator('ol > li')

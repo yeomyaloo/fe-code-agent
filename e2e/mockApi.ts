@@ -104,13 +104,24 @@ const sinkPaths: SinkPathView[] = [
 
 // ---- 분석 작업 #7 (완료) ----
 
-const goal: NodeView = { id: 400, kind: 'GOAL', status: 'DONE', title: 'vulnerable-app 보안 취약점 분석', body: '진입점 → 위험 지점 경로 3개 조사', props: {}, workerId: null }
+const goal: NodeView = {
+  id: 400, kind: 'GOAL', status: 'DONE', title: 'vulnerable-app 보안 취약점 분석', body: '계획 담당이 할 일을 정함 (최대 3회차, 할 일 상한 10개)',
+  props: { planner: 'LLM', maxIntentions: 10, plannerRound: 2, planningFinished: true, finishedRound: 2, finishReason: '위험 경로 3개를 모두 조사했고, 후속 조사로 명령 실행 코드가 다른 곳에서 호출되지 않음을 확인함' },
+  workerId: null,
+}
 
 const intentions: NodeView[] = [
-  { id: 401, kind: 'INTENTION', status: 'DONE', title: 'GET /api/users/search → org.springframework.jdbc.core.JdbcTemplate.queryForList', body: '', props: { category: 'SQL', cwe: 'CWE-89' }, workerId: 'worker-1' },
-  { id: 402, kind: 'INTENTION', status: 'DONE', title: 'POST /api/users/ping → java.lang.Runtime.exec', body: '', props: { category: 'COMMAND', cwe: 'CWE-78' }, workerId: 'worker-2' },
-  { id: 403, kind: 'INTENTION', status: 'DONE', title: 'GET /api/users/files/{name} → java.nio.file.Files.readAllBytes', body: '', props: { category: 'PATH', cwe: 'CWE-22' }, workerId: 'worker-3' },
+  { id: 401, kind: 'INTENTION', status: 'DONE', title: '사용자 검색 API의 SQL 인젝션 경로', body: '', props: { category: 'SQL', cwe: 'CWE-89', plannedRound: 1, dependsOn: [], instructions: 'GET /api/users/search 의 name 이 UserServiceImpl#findByName 의 쿼리 문자열까지 가는지, 파라미터 바인딩이나 검증이 있는지 확인' }, workerId: 'worker-1' },
+  { id: 402, kind: 'INTENTION', status: 'DONE', title: 'ping API의 명령 실행 경로', body: '', props: { category: 'COMMAND', cwe: 'CWE-78', plannedRound: 1, dependsOn: [], instructions: 'host 가 Runtime.exec 인자로 그대로 들어가는지, 허용 목록이나 형식 검사가 있는지 확인' }, workerId: 'worker-2' },
+  { id: 403, kind: 'INTENTION', status: 'DONE', title: '파일 다운로드 API의 경로 조작', body: '', props: { category: 'PATH', cwe: 'CWE-22', plannedRound: 1, dependsOn: [], instructions: 'name 경로 변수가 정규화·기준 경로 확인 없이 Files.readAllBytes 로 가는지 확인' }, workerId: 'worker-3' },
+  { id: 404, kind: 'INTENTION', status: 'DONE', title: '명령 실행 코드가 다른 곳에서 호출되는지', body: '', props: { category: 'COMMAND', cwe: 'CWE-78', plannedRound: 2, dependsOn: [402], instructions: 'CommandService#shell 과 FileService#load 를 호출하는 곳이 있는지 get_callers·grep_code 로 확인' }, workerId: 'worker-1' },
 ]
+
+const planConclusion = (round: number, id: number, body: string, steps: number, input: number, output: number): NodeView => ({
+  id, kind: 'FACT', status: 'DONE', title: `계획 ${round}회차 결론`, body,
+  props: { round, outcome: 'COMPLETED', steps, inputTokens: input, outputTokens: output, cacheReadTokens: 0, error: null, workerId: 'planner' },
+  workerId: null,
+})
 
 const conclusion = (intentionId: number, id: number, body: string, steps: number, input: number, output: number, cache: number): NodeView => ({
   id, kind: 'FACT', status: 'DONE', title: `할 일 #${intentionId} 결론`, body,
@@ -123,6 +134,9 @@ const facts: NodeView[] = [
   conclusion(401, 411, '판정: 취약\n근거: GET /api/users/search 의 name 파라미터가 검증 없이 UserServiceImpl.java:24 에서 SQL 문자열에 이어 붙여지고, :25 의 jdbcTemplate.queryForList 로 실행된다. 컨트롤러와 서비스 어디에도 @Valid, 허용 목록, 이스케이프가 없다.', 7, 18_420, 2_310, 12_800),
   conclusion(402, 412, '판정: 취약\n근거: POST /api/users/ping 의 host 가 CommandService.java:11 에서 "ping -c 1 " 뒤에 그대로 붙어 Runtime.exec 로 실행된다. 단일 문자열 exec 는 공백으로 인자를 나누므로 셸 메타문자 자체는 해석되지 않지만, 인자 주입(-f, -s 등)으로 서비스 거부가 가능하다.', 6, 15_970, 2_040, 11_200),
   conclusion(403, 413, '판정: 판단 불가\n근거: name 이 Paths.get(BASE_DIR, name) 로 합쳐져 ../ 를 막지 않는다. 다만 /var/data 밖의 어떤 파일이 운영 환경에서 읽을 수 있는지는 저장소만으로 확인할 수 없다.', 8, 21_100, 2_620, 14_400),
+  conclusion(404, 414, '판정: 취약하지 않음\n근거: CommandService#shell 과 FileService#load 를 호출하는 곳이 없다(get_callers, grep_code). 지금은 외부에서 닿지 않는다.', 4, 9_800, 1_100, 7_200),
+  planConclusion(1, 405, 'SQL·명령 실행·경로 조작 경로 3개를 먼저 조사하도록 계획했습니다. 진입점에 사용자 데이터를 경로 변수로 다루는 API 가 없어 권한 점검은 만들지 않았습니다.', 6, 14_200, 1_650),
+  planConclusion(2, 406, '명령 실행 경로가 취약으로 나와, 같은 서비스의 shell·load 가 다른 곳에서 호출되는지 후속 조사를 하나 더했고 계획을 끝냈습니다.', 4, 11_900, 980),
 ]
 
 const findings: NodeView[] = [
@@ -212,7 +226,7 @@ export const runningAnalysis: AnalysisView = {
 
 export const analysisList: JobSummaryView[] = [
   { job: runningAnalysis.job, intentions: 3, intentionsFinished: 0, findings: { OPEN: 0, CONFIRMED: 0, REJECTED: 0, UNCERTAIN: 0 } },
-  { job: analysis.job, intentions: 3, intentionsFinished: 3, findings: { OPEN: 0, CONFIRMED: 2, REJECTED: 1, UNCERTAIN: 1 } },
+  { job: analysis.job, intentions: 4, intentionsFinished: 4, findings: { OPEN: 0, CONFIRMED: 2, REJECTED: 1, UNCERTAIN: 1 } },
   {
     job: { ...analysis.job, id: 5, status: 'STOPPED', budgetTokens: 100_000, usedTokens: 100_412, inputTokens: 91_002, outputTokens: 9_410, error: '토큰 예산 소진', startedAt: '2026-10-08T14:02:10Z', finishedAt: '2026-10-08T14:03:31Z' },
     intentions: 3, intentionsFinished: 1, findings: { OPEN: 1, CONFIRMED: 0, REJECTED: 0, UNCERTAIN: 0 },
@@ -224,6 +238,13 @@ const t = (id: number, intentionId: number, workerId: string, step: number, role
 })
 
 export const traces: TraceView[] = [
+  // 계획 담당 1회차 (목표 #400 으로 묶임)
+  t(101, 400, 'planner', 0, 'USER', null, '분석 대상: vulnerable-app\n계획 1회차 (최대 3회차). 할 일 상한 10개.\n\n코드 그래프를 훑어보고, 실행 담당들이 나눠 조사할 할 일을 만드세요.', -4),
+  t(102, 400, 'planner', 1, 'TOOL_CALL', 'list_sink_paths', '{}', -3),
+  t(103, 400, 'planner', 2, 'TOOL_RESULT', 'list_sink_paths', '경로 6개\n- GET /api/users/search (진입점 101) → [SQL CWE-89] org.springframework.jdbc.core.JdbcTemplate.queryForList (위험 지점 201)\n- POST /api/users/ping (진입점 102) → [COMMAND CWE-78] java.lang.Runtime.exec (위험 지점 202)\n- GET /api/users/files/{name} (진입점 103) → [PATH CWE-22] java.nio.file.Files.readAllBytes (위험 지점 204)', -3),
+  t(104, 400, 'planner', 3, 'TOOL_CALL', 'add_intention', '{"title":"사용자 검색 API의 SQL 인젝션 경로","entry_node_id":101,"sink_node_id":201,"instructions":"name 이 쿼리 문자열까지 가는지 확인"}', -2),
+  t(105, 400, 'planner', 4, 'TOOL_RESULT', 'add_intention', '할 일 #401 추가함 (1회차, 남은 자리 9개)', -2),
+  t(106, 400, 'planner', 5, 'ASSISTANT', null, 'SQL·명령 실행·경로 조작 경로 3개를 먼저 조사하도록 계획했습니다.', -1),
   t(1, 401, 'worker-1', 0, 'USER', null, '할 일: 아래 진입점의 외부 입력이 위험 지점까지 도달해 악용될 수 있는지 조사하세요.\n\n진입점: GET /api/users/search  (노드 id 101)\n처리 메서드: com.example.vuln.web.UserController#search(String)\n\n위험 지점: [SQL CWE-89] org.springframework.jdbc.core.JdbcTemplate.queryForList  (노드 id 201)', 0),
   t(2, 401, 'worker-1', 1, 'ASSISTANT', null, '경로가 인터페이스 UserService 를 거쳐 UserServiceImpl 로 이어집니다. 먼저 다른 실행 담당이 같은 코드를 봤는지 확인하고, 구현 클래스를 읽겠습니다.', 3),
   t(3, 401, 'worker-1', 2, 'TOOL_CALL', 'search_worker_traces', '{"query":"UserServiceImpl findByName"}', 3),

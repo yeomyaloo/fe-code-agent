@@ -163,7 +163,11 @@ export interface TraceView {
   createdAt: string
 }
 
+/** llm: 계획 담당(Opus)이 할 일을 정함, paths: 진입점 → 위험 지점 경로마다 기계적으로 */
+export type PlannerMode = 'llm' | 'paths'
+
 export interface StartAnalysisRequest {
+  planner: PlannerMode
   maxIntentions: number
   budgetTokens: number
 }

@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router'
 import { isActive, useAnalysis, useProjects, useTraces, useVerify } from '../api/hooks'
 import type { AnalysisView, NodeView } from '../api/types'
-import { Button, Card, Empty, ErrorBox, Loading, Spinner, Stat, Tabs } from '../components/ui'
+import { Badge, Button, Card, Empty, ErrorBox, Loading, Spinner, Stat, Tabs } from '../components/ui'
 import { JobStatusBadge } from '../components/status'
 import { formatDateTime, formatDuration, formatNumber, formatTokens } from '../lib/format'
 import FindingList from './analysis/FindingList'
@@ -70,6 +70,7 @@ function Header({ data }: { data: AnalysisView }) {
   const verify = useVerify(job.id)
   const project = projects.data?.find((p) => p.id === job.projectId)
   const openFindings = data.nodes.filter((n) => n.kind === 'FINDING' && n.status === 'OPEN').length
+  const goal = data.nodes.find((n) => n.kind === 'GOAL')
 
   return (
     <div>
@@ -79,6 +80,9 @@ function Header({ data }: { data: AnalysisView }) {
       <div className="mt-1 flex flex-wrap items-center gap-2">
         <h1 className="text-xl font-semibold">분석 #{job.id}</h1>
         <JobStatusBadge status={job.status} />
+        {goal?.props.planner && (
+          <Badge tone="purple">{goal.props.planner === 'LLM' ? `LLM 계획 ${goal.props.plannerRound ?? 0}회차` : '경로 계획'}</Badge>
+        )}
         {isActive(job.status) && <Spinner className="text-blue-500" />}
         <div className="ml-auto flex flex-wrap gap-2">
           {!isActive(job.status) && openFindings > 0 && (
@@ -183,7 +187,7 @@ function TracesTab({ jobId, active, nodes, filter, onFilter }: {
           <option value="">전체 ({traces.data.length})</option>
           {groupIds.map((id) => {
             const node = titles.get(id)
-            const prefix = node?.kind === 'FINDING' ? '검증' : '할 일'
+            const prefix = node?.kind === 'FINDING' ? '검증' : node?.kind === 'GOAL' ? '계획' : '할 일'
             return (
               <option key={id} value={id}>
                 {prefix} #{id} {node ? `· ${node.title.slice(0, 40)}` : ''}

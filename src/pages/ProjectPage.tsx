@@ -10,7 +10,7 @@ import {
   useStartAnalysis,
   useSyncProject,
 } from '../api/hooks'
-import type { IndexResult, SinkPathView } from '../api/types'
+import type { IndexResult, PlannerMode, SinkPathView } from '../api/types'
 import { Badge, Button, Card, Code, Empty, ErrorBox, Field, inputClass, Loading, Stat, Tabs } from '../components/ui'
 import { CategoryBadge, JobStatusBadge } from '../components/status'
 import { formatDateTime, formatNumber, formatTokens, location, shortName } from '../lib/format'
@@ -239,21 +239,36 @@ function QueryView<T extends unknown[]>({ query, empty, children }: {
 function StartAnalysisCard({ projectId }: { projectId: number }) {
   const navigate = useNavigate()
   const start = useStartAnalysis(projectId)
-  const [maxIntentions, setMaxIntentions] = useState(5)
+  const [planner, setPlanner] = useState<PlannerMode>('llm')
+  const [maxIntentions, setMaxIntentions] = useState(10)
   const [budgetTokens, setBudgetTokens] = useState(2_000_000)
+
+  const changePlanner = (mode: PlannerMode) => {
+    setPlanner(mode)
+    setMaxIntentions(mode === 'llm' ? 10 : 5)
+  }
 
   const submit = (e: FormEvent) => {
     e.preventDefault()
-    start.mutate({ maxIntentions, budgetTokens }, { onSuccess: (job) => navigate(`/analyses/${job.id}`) })
+    start.mutate({ planner, maxIntentions, budgetTokens }, { onSuccess: (job) => navigate(`/analyses/${job.id}`) })
   }
 
   return (
     <Card title="② 에이전트 분석 시작">
       <p className="text-sm text-zinc-500">
-        경로마다 할 일을 만들고, Worker(Sonnet)가 코드를 조사한 뒤 Verifier(Opus)가 발견을 다시 검증해요. Anthropic API 사용량만큼 비용이 들어요.
+        {planner === 'llm'
+          ? 'Planner(Opus)가 코드 그래프를 보고 할 일을 정하고, Worker(Sonnet)들이 나눠 조사한 결과를 보고 할 일을 보완해요(최대 3회차). 마지막에 Verifier(Opus)가 발견을 다시 검증해요.'
+          : '진입점 → 위험 지점 경로마다 할 일을 하나씩 만들고, Worker(Sonnet)가 조사한 뒤 Verifier(Opus)가 발견을 다시 검증해요.'}{' '}
+        Anthropic API 사용량만큼 비용이 들어요.
       </p>
-      <form onSubmit={submit} className="mt-3 grid items-end gap-3 sm:grid-cols-[1fr_1fr_auto]">
-        <Field label="조사할 경로 수 (할 일)" hint="1 ~ 100">
+      <form onSubmit={submit} className="mt-3 grid items-end gap-3 sm:grid-cols-[1.2fr_1fr_1fr_auto]">
+        <Field label="계획 방식" hint={planner === 'llm' ? '권한 검사 누락처럼 경로가 없는 문제도 찾아요' : '인젝션 계열 경로만 조사해요'}>
+          <select className={inputClass} value={planner} onChange={(e) => changePlanner(e.target.value as PlannerMode)}>
+            <option value="llm">LLM Planner가 계획</option>
+            <option value="paths">경로마다 기계적으로</option>
+          </select>
+        </Field>
+        <Field label={planner === 'llm' ? '할 일 상한' : '조사할 경로 수 (할 일)'} hint="1 ~ 100">
           <input
             type="number"
             min={1}

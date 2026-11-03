@@ -30,6 +30,13 @@ test('@screenshot 분석 발견', async ({ page }) => {
   await page.screenshot({ path: `${DIR}/analysis-findings.png`, fullPage: true })
 })
 
+test('@screenshot Planner 와 할 일', async ({ page }) => {
+  await page.goto('/analyses/7')
+  await page.getByRole('tab', { name: '할 일 4' }).click()
+  await expect(page.getByText('계획 종료')).toBeVisible()
+  await page.screenshot({ path: `${DIR}/analysis-plan.png`, fullPage: true })
+})
+
 test('@screenshot 에이전트 기록', async ({ page }) => {
   await page.goto('/analyses/7')
   await page.getByRole('tab', { name: /에이전트 기록/ }).click()
