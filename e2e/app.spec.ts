@@ -165,15 +165,46 @@ test.describe('분석 화면', () => {
     await expect(items.last()).toContainText('판정: 취약')
   })
 
-  test('진행 중인 분석은 자동으로 다시 불러온다', async ({ page }) => {
+  test('실시간 연결이 없으면 2초마다 다시 불러온다', async ({ page }) => {
+    // 예시 API 는 /events 에 404 를 돌려주므로 SSE 가 연결되지 않는다
     let calls = 0
     page.on('request', (r) => {
       if (new URL(r.url()).pathname === '/api/analyses/8') calls++
     })
     await page.goto('/analyses/8')
     await expect(page.getByText('진행 중')).toBeVisible()
+    await expect(page.getByText('2초마다 갱신')).toBeVisible()
     await page.waitForTimeout(4500)
     expect(calls).toBeGreaterThanOrEqual(3)
+  })
+
+  test('서버가 변화를 알리면(SSE) 바로 다시 불러오고, 끝나면 알린다', async ({ page }) => {
+    const analysisCalls: number[] = []
+    let tracesCalls = 0
+    page.on('request', (r) => {
+      const path = new URL(r.url()).pathname
+      if (path === '/api/analyses/8') analysisCalls.push(Date.now())
+      if (path === '/api/analyses/8/traces') tracesCalls++
+    })
+    // 연결 → 변화 두 번(400ms 안에 몰려 와서 한 번만 다시 불러옴) → 계속 연결 유지
+    let releaseFinished: () => void = () => {}
+    const finished = new Promise<void>((resolve) => (releaseFinished = resolve))
+    await page.route((url) => url.pathname === '/api/analyses/8/events', async (route) => {
+      await route.fulfill({
+        status: 200,
+        headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' },
+        body: 'retry: 60000\nevent: ready\ndata: RUNNING\n\nevent: change\ndata: trace\n\nevent: change\ndata: node\n\n',
+      })
+      await finished
+    })
+
+    await page.goto('/analyses/8')
+    await page.getByRole('tab', { name: /에이전트 기록/ }).click()
+    await expect.poll(() => analysisCalls.length, { timeout: 3000 }).toBeGreaterThanOrEqual(2)
+    // 2초 폴링보다 먼저 다시 불러왔으면 이벤트 덕분이다
+    expect(analysisCalls[1] - analysisCalls[0]).toBeLessThan(1500)
+    expect(tracesCalls).toBeGreaterThanOrEqual(1)
+    releaseFinished()
   })
 
   test('보고서 링크', async ({ page }) => {

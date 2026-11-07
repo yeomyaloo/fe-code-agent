@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router'
-import { isActive, useAnalysis, useProjects, useTraces, useVerify } from '../api/hooks'
+import { isActive, useAnalysis, useAnalysisEvents, useProjects, useTraces, useVerify } from '../api/hooks'
 import type { AnalysisView, NodeView } from '../api/types'
 import { Badge, Button, Card, Empty, ErrorBox, Loading, Spinner, Stat, Tabs } from '../components/ui'
 import { JobStatusBadge } from '../components/status'
@@ -13,7 +13,10 @@ type Tab = 'findings' | 'intentions' | 'traces'
 
 export default function AnalysisPage() {
   const jobId = Number(useParams().jobId)
-  const analysis = useAnalysis(jobId)
+  // 실시간 이벤트(SSE)가 연결돼 있으면 폴링하지 않는다. 끊기면 2초 폴링으로 돌아간다
+  const [live, setLive] = useState(false)
+  const analysis = useAnalysis(jobId, live)
+  useAnalysisEvents(jobId, isActive(analysis.data?.job.status), setLive)
   const [tab, setTab] = useState<Tab>('findings')
   const [traceFilter, setTraceFilter] = useState<number | null>(null)
 
@@ -32,7 +35,7 @@ export default function AnalysisPage() {
 
   return (
     <div className="space-y-6">
-      <Header data={analysis.data} />
+      <Header data={analysis.data} live={live} />
       <Summary data={analysis.data} findings={findings} intentions={intentions} />
 
       <div>
@@ -56,7 +59,7 @@ export default function AnalysisPage() {
           {tab === 'findings' && <FindingList jobId={jobId} findings={findings} onShowTraces={showTraces} />}
           {tab === 'intentions' && <IntentionList nodes={nodes} intentions={intentions} onShowTraces={showTraces} />}
           {tab === 'traces' && (
-            <TracesTab jobId={jobId} active={active} nodes={nodes} filter={traceFilter} onFilter={setTraceFilter} />
+            <TracesTab jobId={jobId} active={active} poll={active && !live} nodes={nodes} filter={traceFilter} onFilter={setTraceFilter} />
           )}
         </div>
       </div>
@@ -64,7 +67,7 @@ export default function AnalysisPage() {
   )
 }
 
-function Header({ data }: { data: AnalysisView }) {
+function Header({ data, live }: { data: AnalysisView; live: boolean }) {
   const { job } = data
   const projects = useProjects()
   const verify = useVerify(job.id)
@@ -84,6 +87,12 @@ function Header({ data }: { data: AnalysisView }) {
           <Badge tone="purple">{goal.props.planner === 'LLM' ? `LLM 계획 ${goal.props.plannerRound ?? 0}회차` : '경로 계획'}</Badge>
         )}
         {isActive(job.status) && <Spinner className="text-blue-500" />}
+        {isActive(job.status) && (
+          <span className="inline-flex items-center gap-1 text-xs text-zinc-500" title={live ? '서버가 변화를 바로 알려줘요 (SSE)' : '실시간 연결이 없어 2초마다 다시 불러와요'}>
+            <span className={live ? 'size-2 rounded-full bg-green-500' : 'size-2 rounded-full bg-zinc-400'} />
+            {live ? '실시간' : '2초마다 갱신'}
+          </span>
+        )}
         <div className="ml-auto flex flex-wrap gap-2">
           {!isActive(job.status) && openFindings > 0 && (
             <Button onClick={() => verify.mutate()} loading={verify.isPending}>
@@ -159,14 +168,15 @@ function Summary({ data, findings, intentions }: { data: AnalysisView; findings:
   )
 }
 
-function TracesTab({ jobId, active, nodes, filter, onFilter }: {
+function TracesTab({ jobId, active, poll, nodes, filter, onFilter }: {
   jobId: number
   active: boolean
+  poll: boolean
   nodes: NodeView[]
   filter: number | null
   onFilter: (id: number | null) => void
 }) {
-  const traces = useTraces(jobId, active)
+  const traces = useTraces(jobId, poll)
   const titles = useMemo(() => new Map(nodes.map((n) => [n.id, n])), [nodes])
 
   if (traces.isPending) return <Loading />

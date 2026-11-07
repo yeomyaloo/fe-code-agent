@@ -49,7 +49,7 @@ claude plugin install code-agent@yeomyaloo-code-agent
 |---|---|---|
 | **Projects** `/` | Register a repository by Git URL or server folder path, list registered repositories | `POST /api/projects`, `GET /api/projects` |
 | **Project detail** `/projects/:id` | Pull the latest commit, build the code graph (file, method, entry point and sink stats), browse entry point → sink paths, entry points and sinks, start an analysis (planning mode: LLM Planner / mechanically per path), analysis list (status, finished tasks, finding counts, tokens) | `/sync`, `/index`, `/code-graph/*`, `POST·GET /analyses` |
-| **Analysis** `/analyses/:id` | Progress (refreshed every 2 seconds), token usage, findings (Verifier verdict, evidence code, attack example), human review, the Planner's per-round plans and per-task conclusions, agent log timeline, HTML and SARIF reports | `GET /analyses/:id`, `/traces`, `/findings/:id/review`, `/verify`, `/report.*` |
+| **Analysis** `/analyses/:id` | Real-time progress (server events, SSE; falls back to 2-second polling), token usage, findings (Verifier verdict, evidence code, attack example), human review, the Planner's per-round plans and per-task conclusions, agent log timeline, HTML and SARIF reports | `GET /analyses/:id`, `/traces`, `/findings/:id/review`, `/verify`, `/report.*` |
 
 The **Agent log** tab shows what the agent did, in order: what Claude thought, which tools it called, and what results it got back. While an analysis is running, it follows new entries automatically.
 
@@ -111,7 +111,7 @@ What is checked: repository list ordering, Git registration and error messages, 
 |---|---|
 | Framework | React 19 + TypeScript, Vite 6 |
 | Routing | React Router 7 |
-| Server state | TanStack Query 5 (running analyses are polled every 2 seconds) |
+| Server state | TanStack Query 5 + EventSource (running analyses update from SSE events, or every 2 seconds without them) |
 | Styling | Tailwind CSS 4 (automatic light and dark mode) |
 | UI tests | Playwright 1.64 (+ Playwright MCP) |
 
@@ -148,7 +148,7 @@ Dockerfile, nginx.conf.template  container image: nginx serves the build, proxie
 
 ## Known limitations
 
-- Live updates use 2-second polling. This will change once the backend has SSE.
+- Live updates use server events (SSE) and fall back to 2-second polling when the connection drops. The page header shows which one is in use ("실시간" / "2초마다 갱신").
 - There is no authentication. It is meant for local, single-user use.
 
 ## License
@@ -206,7 +206,7 @@ claude plugin install code-agent@yeomyaloo-code-agent
 |---|---|---|
 | **프로젝트** `/` | Git 주소나 서버 폴더 경로로 저장소 등록, 등록된 저장소 목록 | `POST /api/projects`, `GET /api/projects` |
 | **프로젝트 상세** `/projects/:id` | 최신 커밋 받기, 코드 그래프 만들기(파일·메서드·진입점·위험 지점 통계), 진입점 → 위험 지점 경로·진입점·위험 지점 조회, 분석 시작(계획 방식: LLM Planner / 경로마다 기계적으로), 분석 목록(상태·할 일·발견 개수·토큰) | `/sync`, `/index`, `/code-graph/*`, `POST·GET /analyses` |
-| **분석** `/analyses/:id` | 진행 상황(2초마다 갱신), 토큰 사용량, 발견 목록(Verifier 판정·근거 코드·공격 예시), 사람 검토, Planner 회차별 계획과 할 일별 결론, 에이전트 기록 타임라인, HTML·SARIF 보고서 | `GET /analyses/:id`, `/traces`, `/findings/:id/review`, `/verify`, `/report.*` |
+| **분석** `/analyses/:id` | 실시간 진행 상황(서버 이벤트 SSE, 끊기면 2초 폴링), 토큰 사용량, 발견 목록(Verifier 판정·근거 코드·공격 예시), 사람 검토, Planner 회차별 계획과 할 일별 결론, 에이전트 기록 타임라인, HTML·SARIF 보고서 | `GET /analyses/:id`, `/traces`, `/findings/:id/review`, `/verify`, `/report.*` |
 
 **에이전트 기록** 탭에서는 에이전트가 한 일을 순서대로 볼 수 있다. Claude가 무슨 생각을 했고, 어떤 도구를 불렀고, 무슨 결과를 받았는지가 나온다. 분석이 진행 중이면 새 기록을 자동으로 따라간다.
 
@@ -268,7 +268,7 @@ npx playwright show-report        # 실패 시 HTML 리포트와 trace 보기
 |---|---|
 | 프레임워크 | React 19 + TypeScript, Vite 6 |
 | 라우팅 | React Router 7 |
-| 서버 상태 | TanStack Query 5 (진행 중인 분석은 2초 폴링) |
+| 서버 상태 | TanStack Query 5 + EventSource (진행 중인 분석은 SSE 이벤트로 갱신, 이벤트가 없으면 2초 폴링) |
 | 스타일 | Tailwind CSS 4 (라이트·다크 모드 자동) |
 | 화면 테스트 | Playwright 1.64 (+ Playwright MCP) |
 
@@ -305,7 +305,7 @@ Dockerfile, nginx.conf.template  컨테이너 이미지: nginx 가 빌드 결과
 
 ## 알려진 한계
 
-- 실시간 갱신은 2초 폴링이다. 백엔드에 SSE가 생기면 바꾼다.
+- 실시간 갱신은 서버 이벤트(SSE)로 하고, 연결이 끊기면 2초 폴링으로 돌아간다. 화면 위쪽에 어느 쪽인지("실시간" / "2초마다 갱신") 표시된다.
 - 인증이 없다. 로컬에서 혼자 쓰는 용도다.
 
 ## 라이선스

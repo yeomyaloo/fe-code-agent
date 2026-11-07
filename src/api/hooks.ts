@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from './client'
 import type {
@@ -108,20 +109,70 @@ export function useStartAnalysis(projectId: number) {
   })
 }
 
-export function useAnalysis(jobId: number) {
+/** @param live 실시간 이벤트(SSE)가 연결돼 있으면 폴링하지 않는다 */
+export function useAnalysis(jobId: number, live = false) {
   return useQuery({
     queryKey: keys.analysis(jobId),
     queryFn: () => api.get<AnalysisView>(`/api/analyses/${jobId}`),
-    refetchInterval: (query) => (isActive(query.state.data?.job.status) ? POLL_MS : false),
+    refetchInterval: (query) => (isActive(query.state.data?.job.status) && !live ? POLL_MS : false),
   })
 }
 
-export function useTraces(jobId: number, active: boolean) {
+/** @param poll 진행 중이고 실시간 이벤트가 없을 때만 true */
+export function useTraces(jobId: number, poll: boolean) {
   return useQuery({
     queryKey: keys.traces(jobId),
     queryFn: () => api.get<TraceView[]>(`/api/analyses/${jobId}/traces`),
-    refetchInterval: active ? POLL_MS : false,
+    refetchInterval: poll ? POLL_MS : false,
   })
+}
+
+/** 이벤트가 몰려 와도 이 간격에 한 번만 다시 불러온다 */
+const EVENT_REFETCH_MS = 400
+
+/**
+ * 진행 중인 작업의 변화를 서버가 보내는 이벤트(SSE, GET /api/analyses/{id}/events)로 받아 바로 다시 불러온다.
+ * 연결되면 onLive(true) 로 폴링을 끄고, 끊기면 onLive(false) 로 2초 폴링으로 돌아간다 (EventSource 는 알아서 다시 연결한다).
+ */
+export function useAnalysisEvents(jobId: number, active: boolean, onLive: (live: boolean) => void) {
+  const queryClient = useQueryClient()
+
+  useEffect(() => {
+    if (!active || typeof EventSource === 'undefined') {
+      onLive(false)
+      return
+    }
+    const source = new EventSource(`/api/analyses/${jobId}/events`)
+    let timer: ReturnType<typeof setTimeout> | null = null
+    const refetch = () => {
+      queryClient.invalidateQueries({ queryKey: keys.analysis(jobId) })
+      queryClient.invalidateQueries({ queryKey: keys.traces(jobId) })
+    }
+    const scheduleRefetch = () => {
+      if (timer == null) {
+        timer = setTimeout(() => {
+          timer = null
+          refetch()
+        }, EVENT_REFETCH_MS)
+      }
+    }
+
+    source.addEventListener('ready', () => onLive(true))
+    source.addEventListener('change', scheduleRefetch)
+    source.addEventListener('finished', () => {
+      source.close()
+      onLive(false)
+      refetch()
+      queryClient.invalidateQueries({ queryKey: ['projects'] })
+    })
+    source.onerror = () => onLive(false)
+
+    return () => {
+      source.close()
+      if (timer != null) clearTimeout(timer)
+      onLive(false)
+    }
+  }, [jobId, active, queryClient, onLive])
 }
 
 export function useVerify(jobId: number) {

@@ -19,7 +19,7 @@ npm run screenshots  # docs/screenshots/*.png 다시 만들기
 
 - `src/api/types.ts`는 백엔드 record(`ProjectController`, `AnalysisController`, `CodeGraphQuery`)와 필드 이름을 맞춘다. 백엔드 API가 바뀌면 여기부터 고친다.
 - API 호출은 `src/api/hooks.ts`의 React Query 훅으로만 한다. 컴포넌트에서 fetch 를 직접 부르지 않는다.
-- 진행 중인 분석(PENDING/RUNNING)은 2초 폴링(`refetchInterval`).
+- 진행 중인 분석(PENDING/RUNNING)은 `useAnalysisEvents`가 SSE(`/api/analyses/{id}/events`)를 받아 다시 불러온다. SSE 가 연결돼 있지 않을 때만 2초 폴링(`refetchInterval`).
 - 공통 UI는 `components/ui.tsx`, 상태 배지는 `components/status.tsx`에 모은다.
 - 발견(FINDING)의 세부 내용은 `props`(JSON)에 있다. 타입은 `FindingProps`.
 - 화면 테스트의 가짜 API는 `e2e/mockApi.ts`. 백엔드 API를 새로 쓰면 여기에도 응답을 추가한다. 가로채기는 `isApi`(경로가 `/api/`로 시작)로만 한다. `'**/api/**'` 패턴은 프론트 소스(`/src/api/*.ts`)까지 가로채서 앱이 안 뜬다.
