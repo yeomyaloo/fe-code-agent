@@ -31,4 +31,5 @@ npm run screenshots  # docs/screenshots/*.png 다시 만들기
 - 스타일은 Tailwind 유틸리티만 쓴다. 라이트·다크 모드 둘 다 `dark:` 로 맞춘다.
 - localStorage 접근은 try/catch로 감싼다(저장이 안 되는 환경에서도 화면이 떠야 함).
 - 작업이 끝나고 `npm run build`와 `npm run test:e2e`가 통과하면 커밋하고 푸시해도 된다. 기능을 바꾸면 README의 화면 표를 갱신하고, 화면이 바뀌면 `npm run screenshots`로 스크린샷도 다시 만든다.
+- README는 영어 먼저, `---` 아래에 한국어. 둘 다 같이 고친다.
 - 사용자에게 설명과 요약은 한국어로 한다.

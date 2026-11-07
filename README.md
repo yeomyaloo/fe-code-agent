@@ -1,8 +1,170 @@
 # fe-code-agent
 
+**Web UI for [be-code-agent](https://github.com/yeomyaloo/be-code-agent), an AI code security audit agent**
+
+[English](#english) · [한국어](#한국어)
+
+<a id="english"></a>
+
+The agent itself runs in the backend. This frontend is where a person **gives the agent work (goals), watches it (observation), and judges the results (review)**.
+
+- **Backend**: [be-code-agent](https://github.com/yeomyaloo/be-code-agent). This UI only calls its API.
+- **Standalone chat version**: if you want to use it from chat without a web UI, API key or database, install [mcp-code-agent](https://github.com/yeomyaloo/mcp-code-agent) as a Claude Code plugin.
+
+```bash
+claude plugin marketplace add yeomyaloo/mcp-code-agent
+claude plugin install code-agent@yeomyaloo-code-agent
+```
+
+## Screenshots
+
+> Taken with the sample data used for UI tests (`e2e/mockApi.ts`, which assumes an analysis of be-code-agent's test fixture `vulnerable-app`). Regenerate them with `npm run screenshots`. The UI text in the screenshots is Korean.
+
+**Project detail**: code graph stats, entry point → sink paths (including calls through interfaces), starting an analysis, the analysis list
+
+![Project detail](docs/screenshots/project.png)
+
+**Analysis results**: token usage, and for each finding the Worker report, evidence code, attack example, Verifier verdict and human review
+
+![Analysis results](docs/screenshots/analysis-findings.png)
+
+**Planner and tasks**: the Planner's (LLM) plan summary per round, and for each task the round it was created in, its instructions, prerequisite tasks and the Worker's conclusion
+
+![Planner and tasks](docs/screenshots/analysis-plan.png)
+
+**Agent log**: what the Planner and Workers thought and which tools they called, in order
+
+![Agent log](docs/screenshots/analysis-traces.png)
+
+<details>
+<summary>Project list</summary>
+
+![Project list](docs/screenshots/projects.png)
+
+</details>
+
+## Pages
+
+| Page | What it does | API used |
+|---|---|---|
+| **Projects** `/` | Register a repository by Git URL or server folder path, list registered repositories | `POST /api/projects`, `GET /api/projects` |
+| **Project detail** `/projects/:id` | Pull the latest commit, build the code graph (file, method, entry point and sink stats), browse entry point → sink paths, entry points and sinks, start an analysis (planning mode: LLM Planner / mechanically per path), analysis list (status, finished tasks, finding counts, tokens) | `/sync`, `/index`, `/code-graph/*`, `POST·GET /analyses` |
+| **Analysis** `/analyses/:id` | Progress (refreshed every 2 seconds), token usage, findings (Verifier verdict, evidence code, attack example), human review, the Planner's per-round plans and per-task conclusions, agent log timeline, HTML and SARIF reports | `GET /analyses/:id`, `/traces`, `/findings/:id/review`, `/verify`, `/report.*` |
+
+The **Agent log** tab shows what the agent did, in order: what Claude thought, which tools it called, and what results it got back. While an analysis is running, it follows new entries automatically.
+
+## Running
+
+### Requirements
+
+- Node.js 20 or later
+- A running [be-code-agent](https://github.com/yeomyaloo/be-code-agent) backend (default `http://localhost:8080`)
+
+### Dev server
+
+```bash
+npm install
+npm run dev
+```
+
+It opens at `http://localhost:5173`. The dev server forwards `/api` requests to the backend (Vite proxy), so the backend needs no CORS setup.
+
+If the backend runs at a different address, set it in `.env.local`.
+
+```
+VITE_API_TARGET=http://localhost:8080
+```
+
+### Build
+
+```bash
+npm run build      # type check + static files in dist/
+npm run preview    # preview the build
+```
+
+## UI tests
+
+[Playwright](https://playwright.dev) opens a real browser (Chromium) and checks the pages. They run **without the backend**: every `/api` request is answered with the sample data in `e2e/mockApi.ts`.
+
+```bash
+npx playwright install chromium   # once
+npm run test:e2e                  # UI tests (starts the dev server for you)
+npm run screenshots               # regenerate README screenshots
+npx playwright show-report        # HTML report and traces on failure
+```
+
+What is checked: repository list ordering, Git registration and error messages, code graph stats and path display, analysis list, starting an analysis (planning mode choice), finding order (confirmed → pending verification → uncertain, rejected hidden), saving human reviews, the Planner's per-round conclusions and follow-up tasks, task conclusions, agent log timeline, auto-refresh of running work, report links, and the message shown when the backend is down.
+
+### Playwright MCP (for Claude Code)
+
+[Playwright MCP](https://github.com/microsoft/playwright-mcp) is registered in `.mcp.json`. When you open Claude Code in this folder, it first asks whether to approve the MCP server. Once approved, Claude can drive the browser itself (click, type, take screenshots) to check the pages.
+
+## Tech stack
+
+| Area | Technology |
+|---|---|
+| Framework | React 19 + TypeScript, Vite 6 |
+| Routing | React Router 7 |
+| Server state | TanStack Query 5 (running analyses are polled every 2 seconds) |
+| Styling | Tailwind CSS 4 (automatic light and dark mode) |
+| UI tests | Playwright 1.64 (+ Playwright MCP) |
+
+## Directory structure
+
+```
+src/
+├── main.tsx                  entry point (QueryClient, Router)
+├── App.tsx                   layout, routes
+├── api/
+│   ├── types.ts              backend response types (names match the backend records)
+│   ├── client.ts             fetch wrapper, ProblemDetail error handling
+│   └── hooks.ts              React Query hooks per API
+├── components/
+│   ├── ui.tsx                shared UI: Card, Button, Badge, Tabs, etc.
+│   └── status.tsx            status, verdict and severity badges
+├── lib/
+│   └── format.ts             number, time and name formatting
+└── pages/
+    ├── ProjectsPage.tsx      repository registration and list
+    ├── ProjectPage.tsx       code graph, starting an analysis
+    ├── AnalysisPage.tsx      analysis progress and results
+    └── analysis/
+        ├── FindingList.tsx   findings, Verifier verdicts, human review
+        ├── IntentionList.tsx tasks and conclusions
+        └── TraceTimeline.tsx agent log timeline
+e2e/
+├── mockApi.ts                sample data and fake /api responses
+├── app.spec.ts               UI tests
+└── screenshots.spec.ts       README screenshots (npm run screenshots)
+docs/screenshots/             README screenshots
+```
+
+## Known limitations
+
+- Live updates use 2-second polling. This will change once the backend has SSE.
+- There is no authentication. It is meant for local, single-user use.
+
+## License
+
+[Apache License 2.0](LICENSE)
+
+---
+
+<a id="한국어"></a>
+
+# fe-code-agent (한국어)
+
 **[be-code-agent](https://github.com/yeomyaloo/be-code-agent)(AI 코드 보안 분석 에이전트)의 웹 화면**
 
 에이전트 자체는 백엔드에서 돈다. 이 프론트는 사람이 에이전트에게 **일을 시키고(목표), 지켜보고(관찰), 결과를 판단하는(검토)** 창구다.
+
+- **백엔드**: [be-code-agent](https://github.com/yeomyaloo/be-code-agent). 이 화면은 백엔드 API만 부른다.
+- **채팅용 독립 버전**: 웹 화면, API 키, DB 없이 채팅에서 쓰려면 [mcp-code-agent](https://github.com/yeomyaloo/mcp-code-agent)를 Claude Code 플러그인으로 설치한다.
+
+```bash
+claude plugin marketplace add yeomyaloo/mcp-code-agent
+claude plugin install code-agent@yeomyaloo-code-agent
+```
 
 ## 스크린샷
 
