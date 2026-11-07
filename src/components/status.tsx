@@ -84,6 +84,7 @@ const CATEGORY_TONES: Record<string, Tone> = {
   SSRF: 'orange',
   JNDI: 'orange',
   OPEN_REDIRECT: 'yellow',
+  IDOR: 'purple',
 }
 
 export function CategoryBadge({ category, cwe }: { category: string; cwe?: string }) {
