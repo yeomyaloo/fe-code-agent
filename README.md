@@ -55,6 +55,12 @@ The **Agent log** tab shows what the agent did, in order: what Claude thought, w
 
 ## Running
 
+### With Docker (backend + database included)
+
+The easiest way to try the web UI is the backend's one-click setup: `docker compose up` in [be-code-agent](https://github.com/yeomyaloo/be-code-agent#quick-start-with-docker-recommended) builds this repository from GitHub (this `Dockerfile`) and starts it with PostgreSQL and the backend at http://localhost:3000. In the container, nginx serves the built files and forwards `/api` to `BACKEND_URL` (default `http://backend:8080`, see `nginx.conf.template`).
+
+The steps below are for developing the UI itself.
+
 ### Requirements
 
 - Node.js 20 or later
@@ -137,6 +143,7 @@ e2e/
 ├── app.spec.ts               UI tests
 └── screenshots.spec.ts       README screenshots (npm run screenshots)
 docs/screenshots/             README screenshots
+Dockerfile, nginx.conf.template  container image: nginx serves the build, proxies /api
 ```
 
 ## Known limitations
@@ -204,6 +211,12 @@ claude plugin install code-agent@yeomyaloo-code-agent
 **에이전트 기록** 탭에서는 에이전트가 한 일을 순서대로 볼 수 있다. Claude가 무슨 생각을 했고, 어떤 도구를 불렀고, 무슨 결과를 받았는지가 나온다. 분석이 진행 중이면 새 기록을 자동으로 따라간다.
 
 ## 실행
+
+### Docker로 실행 (백엔드·DB 포함)
+
+웹 화면을 써 보는 가장 쉬운 방법은 백엔드의 원클릭 설치다. [be-code-agent](https://github.com/yeomyaloo/be-code-agent#docker로-한-번에-실행-추천)에서 `docker compose up`을 하면 이 저장소를 GitHub에서 받아 빌드(이 `Dockerfile`)하고, PostgreSQL·백엔드와 함께 http://localhost:3000 에 띄운다. 컨테이너 안에서는 nginx가 빌드한 파일을 서빙하고 `/api`를 `BACKEND_URL`(기본 `http://backend:8080`, `nginx.conf.template` 참고)로 넘긴다.
+
+아래는 화면을 직접 개발할 때 쓰는 방법이다.
 
 ### 요구 사항
 
@@ -287,6 +300,7 @@ e2e/
 ├── app.spec.ts               화면 테스트
 └── screenshots.spec.ts       README 스크린샷 (npm run screenshots)
 docs/screenshots/             README 스크린샷
+Dockerfile, nginx.conf.template  컨테이너 이미지: nginx 가 빌드 결과를 서빙하고 /api 를 넘김
 ```
 
 ## 알려진 한계
