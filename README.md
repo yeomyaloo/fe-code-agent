@@ -9,7 +9,7 @@
 The agent itself runs in the backend. This frontend is where a person **gives the agent work (goals), watches it (observation), and judges the results (review)**.
 
 - **Backend**: [be-code-agent](https://github.com/yeomyaloo/be-code-agent). This UI only calls its API.
-- **Standalone chat version**: if you want to use it from chat without a web UI, API key or database, install [mcp-code-agent](https://github.com/yeomyaloo/mcp-code-agent) as a Claude Code plugin.
+- **Chat version**: you can also run the same audit from chat by installing [mcp-code-agent](https://github.com/yeomyaloo/mcp-code-agent) as a Claude Code plugin. It is not a fallback for people without an API key but a different way of working: it runs on whatever Claude Code is logged in with (a Claude subscription or an API key), and needs no web UI or database.
 
 ```bash
 claude plugin marketplace add yeomyaloo/mcp-code-agent
@@ -159,7 +159,7 @@ docs/screenshots/             README screenshots
 에이전트 자체는 백엔드에서 돈다. 이 프론트는 사람이 에이전트에게 **일을 시키고(목표), 지켜보고(관찰), 결과를 판단하는(검토)** 창구다.
 
 - **백엔드**: [be-code-agent](https://github.com/yeomyaloo/be-code-agent). 이 화면은 백엔드 API만 부른다.
-- **채팅용 독립 버전**: 웹 화면, API 키, DB 없이 채팅에서 쓰려면 [mcp-code-agent](https://github.com/yeomyaloo/mcp-code-agent)를 Claude Code 플러그인으로 설치한다.
+- **채팅 버전**: 같은 분석을 채팅에서 하려면 [mcp-code-agent](https://github.com/yeomyaloo/mcp-code-agent)를 Claude Code 플러그인으로 설치한다. API 키가 없을 때만 쓰는 대안이 아니라 쓰는 방식이 다른 선택지다. Claude Code에 로그인한 방식(Claude 구독이든 API 키든)으로 돌고, 웹 화면과 DB가 필요 없다.
 
 ```bash
 claude plugin marketplace add yeomyaloo/mcp-code-agent
