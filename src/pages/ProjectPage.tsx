@@ -242,6 +242,7 @@ function StartAnalysisCard({ projectId }: { projectId: number }) {
   const [planner, setPlanner] = useState<PlannerMode>('llm')
   const [maxIntentions, setMaxIntentions] = useState(10)
   const [budgetTokens, setBudgetTokens] = useState(2_000_000)
+  const [requireApproval, setRequireApproval] = useState(true)
 
   const changePlanner = (mode: PlannerMode) => {
     setPlanner(mode)
@@ -250,7 +251,7 @@ function StartAnalysisCard({ projectId }: { projectId: number }) {
 
   const submit = (e: FormEvent) => {
     e.preventDefault()
-    start.mutate({ planner, maxIntentions, budgetTokens }, { onSuccess: (job) => navigate(`/analyses/${job.id}`) })
+    start.mutate({ planner, maxIntentions, budgetTokens, requireApproval }, { onSuccess: (job) => navigate(`/analyses/${job.id}`) })
   }
 
   return (
@@ -291,6 +292,18 @@ function StartAnalysisCard({ projectId }: { projectId: number }) {
         <Button type="submit" variant="primary" loading={start.isPending}>
           분석 시작
         </Button>
+        <label className="flex items-center gap-2 text-sm sm:col-span-4">
+          <input
+            type="checkbox"
+            className="size-4 accent-orange-700"
+            checked={requireApproval}
+            onChange={(e) => setRequireApproval(e.target.checked)}
+          />
+          실행 전에 계획 승인받기
+          <span className="text-xs text-zinc-500">
+            계획이 나올 때마다 멈추고, 할 일을 보고 뺄 것을 고른 뒤 승인해야 Worker가 돌아요 (승인 전에는 토큰을 쓰지 않아요)
+          </span>
+        </label>
       </form>
       <div className="mt-3">
         <ErrorBox error={start.error} />

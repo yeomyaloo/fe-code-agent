@@ -1,12 +1,13 @@
 import { useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router'
-import { isActive, useAnalysis, useAnalysisEvents, useProjects, useTraces, useVerify } from '../api/hooks'
+import { isActive, isOpen, useAnalysis, useAnalysisEvents, useProjects, useTraces, useVerify } from '../api/hooks'
 import type { AnalysisView, NodeView } from '../api/types'
 import { Badge, Button, Card, Empty, ErrorBox, Loading, Spinner, Stat, Tabs } from '../components/ui'
 import { JobStatusBadge } from '../components/status'
 import { formatDateTime, formatDuration, formatNumber, formatTokens } from '../lib/format'
 import FindingList from './analysis/FindingList'
 import IntentionList from './analysis/IntentionList'
+import { ApprovalCard } from './analysis/ApprovalCard'
 import TraceTimeline from './analysis/TraceTimeline'
 
 type Tab = 'findings' | 'intentions' | 'traces'
@@ -16,7 +17,8 @@ export default function AnalysisPage() {
   // 실시간 이벤트(SSE)가 연결돼 있으면 폴링하지 않는다. 끊기면 2초 폴링으로 돌아간다
   const [live, setLive] = useState(false)
   const analysis = useAnalysis(jobId, live)
-  useAnalysisEvents(jobId, isActive(analysis.data?.job.status), setLive)
+  // 승인 대기 중에도 연결해 둔다. 다른 곳에서 승인하면 바로 이어서 보인다
+  useAnalysisEvents(jobId, isOpen(analysis.data?.job.status), setLive)
   const [tab, setTab] = useState<Tab>('findings')
   const [traceFilter, setTraceFilter] = useState<number | null>(null)
 
@@ -36,6 +38,14 @@ export default function AnalysisPage() {
   return (
     <div className="space-y-6">
       <Header data={analysis.data} live={live} />
+      {job.status === 'WAITING_APPROVAL' && (
+        <ApprovalCard
+          key={nodes.find((n) => n.kind === 'GOAL')?.props.plannerRound ?? 0}
+          jobId={jobId}
+          goal={nodes.find((n) => n.kind === 'GOAL')}
+          intentions={intentions}
+        />
+      )}
       <Summary data={analysis.data} findings={findings} intentions={intentions} />
 
       <div>
@@ -87,14 +97,14 @@ function Header({ data, live }: { data: AnalysisView; live: boolean }) {
           <Badge tone="purple">{goal.props.planner === 'LLM' ? `LLM 계획 ${goal.props.plannerRound ?? 0}회차` : '경로 계획'}</Badge>
         )}
         {isActive(job.status) && <Spinner className="text-blue-500" />}
-        {isActive(job.status) && (
+        {isOpen(job.status) && (
           <span className="inline-flex items-center gap-1 text-xs text-zinc-500" title={live ? '서버가 변화를 바로 알려줘요 (SSE)' : '실시간 연결이 없어 2초마다 다시 불러와요'}>
             <span className={live ? 'size-2 rounded-full bg-green-500' : 'size-2 rounded-full bg-zinc-400'} />
             {live ? '실시간' : '2초마다 갱신'}
           </span>
         )}
         <div className="ml-auto flex flex-wrap gap-2">
-          {!isActive(job.status) && openFindings > 0 && (
+          {!isOpen(job.status) && openFindings > 0 && (
             <Button onClick={() => verify.mutate()} loading={verify.isPending}>
               검증 대기 {openFindings}건 다시 검증
             </Button>

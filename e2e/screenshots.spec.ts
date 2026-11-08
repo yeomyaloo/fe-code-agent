@@ -20,7 +20,7 @@ test('@screenshot 프로젝트 상세', async ({ page }) => {
   await page.goto('/projects/1')
   await page.getByRole('button', { name: '코드 그래프 만들기' }).click()
   await expect(page.getByText('0.8초')).toBeVisible()
-  await expect(page.getByRole('row')).toHaveCount(4)
+  await expect(page.getByRole('row')).toHaveCount(5)
   await page.screenshot({ path: `${DIR}/project.png`, fullPage: true })
 })
 
@@ -44,4 +44,12 @@ test('@screenshot 에이전트 기록', async ({ page }) => {
   // 할 일 전달 프롬프트와 도구 결과 하나를 펼쳐서 보여준다
   await page.locator('ol > li').first().locator('summary').click()
   await page.screenshot({ path: `${DIR}/analysis-traces.png`, fullPage: true })
+})
+
+test('@screenshot 계획 승인', async ({ page }) => {
+  await page.goto('/analyses/9')
+  const card = page.getByRole('region', { name: '계획 승인' })
+  await card.getByLabel('#402 조사하기').uncheck()
+  await card.getByLabel('메모 (선택)').fill('ping API는 범위 밖')
+  await page.screenshot({ path: `${DIR}/analysis-approval.png`, fullPage: true })
 })

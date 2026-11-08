@@ -2,6 +2,7 @@ import type { NodeView } from '../../api/types'
 import { Badge, Button, Empty, cx } from '../../components/ui'
 import { CategoryBadge, IntentionStatusBadge } from '../../components/status'
 import { formatNumber } from '../../lib/format'
+import { ApprovalHistory } from './ApprovalCard'
 
 /**
  * 할 일 목록. 할 일마다 실행 담당이 남긴 결론 FACT("할 일 #{id} 결론")를 붙여 보여준다.
@@ -27,6 +28,7 @@ export default function IntentionList({ nodes, intentions, onShowTraces }: {
   return (
     <div className="space-y-4">
       {goal?.props.planner === 'LLM' && <PlannerSummary goal={goal} plans={plans} onShowTraces={onShowTraces} />}
+      <ApprovalHistory goal={goal} />
       {intentions.length === 0 ? (
         <Empty>할 일이 없어요.</Empty>
       ) : (

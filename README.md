@@ -24,6 +24,10 @@ claude plugin install code-agent@yeomyaloo-code-agent
 
 ![Project detail](docs/screenshots/project.png)
 
+**Plan approval**: with "approve the plan before running" on, the analysis stops before any Worker runs. Uncheck tasks to drop them, then approve, or reject the plan to stop the analysis
+
+![Plan approval](docs/screenshots/analysis-approval.png)
+
 **Analysis results**: token usage, and for each finding the Worker report, evidence code, attack example, Verifier verdict and human review
 
 ![Analysis results](docs/screenshots/analysis-findings.png)
@@ -48,8 +52,8 @@ claude plugin install code-agent@yeomyaloo-code-agent
 | Page | What it does | API used |
 |---|---|---|
 | **Projects** `/` | Register a repository by Git URL or server folder path, list registered repositories | `POST /api/projects`, `GET /api/projects` |
-| **Project detail** `/projects/:id` | Pull the latest commit, build the code graph (file, method, entry point and sink stats), browse entry point → sink paths, entry points and sinks, start an analysis (planning mode: LLM Planner / mechanically per path), analysis list (status, finished tasks, finding counts, tokens) | `/sync`, `/index`, `/code-graph/*`, `POST·GET /analyses` |
-| **Analysis** `/analyses/:id` | Real-time progress (server events, SSE; falls back to 2-second polling), token usage, findings (Verifier verdict, evidence code, attack example), human review, the Planner's per-round plans and per-task conclusions, agent log timeline, HTML and SARIF reports | `GET /analyses/:id`, `/traces`, `/findings/:id/review`, `/verify`, `/report.*` |
+| **Project detail** `/projects/:id` | Pull the latest commit, build the code graph (file, method, entry point and sink stats), browse entry point → sink paths, entry points and sinks, start an analysis (planning mode: LLM Planner / mechanically per path; optionally wait for human approval of each plan), analysis list (status, finished tasks, finding counts, tokens) | `/sync`, `/index`, `/code-graph/*`, `POST·GET /analyses` |
+| **Analysis** `/analyses/:id` | Plan approval while `WAITING_APPROVAL` (drop tasks, approve or reject) and the approval history, real-time progress (server events, SSE; falls back to 2-second polling), token usage, findings (Verifier verdict, evidence code, attack example), human review, the Planner's per-round plans and per-task conclusions, agent log timeline, HTML and SARIF reports | `GET /analyses/:id`, `/approve`, `/reject`, `/traces`, `/findings/:id/review`, `/verify`, `/report.*` |
 
 The **Agent log** tab shows what the agent did, in order: what Claude thought, which tools it called, and what results it got back. While an analysis is running, it follows new entries automatically.
 
@@ -135,6 +139,7 @@ src/
     ├── ProjectPage.tsx       code graph, starting an analysis
     ├── AnalysisPage.tsx      analysis progress and results
     └── analysis/
+        ├── ApprovalCard.tsx  plan approval (drop tasks, approve or reject) and its history
         ├── FindingList.tsx   findings, Verifier verdicts, human review
         ├── IntentionList.tsx tasks and conclusions
         └── TraceTimeline.tsx agent log timeline
@@ -181,6 +186,10 @@ claude plugin install code-agent@yeomyaloo-code-agent
 
 ![프로젝트 상세](docs/screenshots/project.png)
 
+**계획 승인**: "실행 전에 계획 승인받기"를 켜면 Worker를 돌리기 전에 멈춘다. 뺄 할 일의 체크를 끄고 승인하거나, 계획을 거절해서 분석을 멈춘다
+
+![계획 승인](docs/screenshots/analysis-approval.png)
+
 **분석 결과**: 토큰 사용량, 발견마다 Worker 보고·근거 코드·공격 예시·Verifier 판정·사람 검토
 
 ![분석 결과](docs/screenshots/analysis-findings.png)
@@ -205,8 +214,8 @@ claude plugin install code-agent@yeomyaloo-code-agent
 | 화면 | 하는 일 | 쓰는 API |
 |---|---|---|
 | **프로젝트** `/` | Git 주소나 서버 폴더 경로로 저장소 등록, 등록된 저장소 목록 | `POST /api/projects`, `GET /api/projects` |
-| **프로젝트 상세** `/projects/:id` | 최신 커밋 받기, 코드 그래프 만들기(파일·메서드·진입점·위험 지점 통계), 진입점 → 위험 지점 경로·진입점·위험 지점 조회, 분석 시작(계획 방식: LLM Planner / 경로마다 기계적으로), 분석 목록(상태·할 일·발견 개수·토큰) | `/sync`, `/index`, `/code-graph/*`, `POST·GET /analyses` |
-| **분석** `/analyses/:id` | 실시간 진행 상황(서버 이벤트 SSE, 끊기면 2초 폴링), 토큰 사용량, 발견 목록(Verifier 판정·근거 코드·공격 예시), 사람 검토, Planner 회차별 계획과 할 일별 결론, 에이전트 기록 타임라인, HTML·SARIF 보고서 | `GET /analyses/:id`, `/traces`, `/findings/:id/review`, `/verify`, `/report.*` |
+| **프로젝트 상세** `/projects/:id` | 최신 커밋 받기, 코드 그래프 만들기(파일·메서드·진입점·위험 지점 통계), 진입점 → 위험 지점 경로·진입점·위험 지점 조회, 분석 시작(계획 방식: LLM Planner / 경로마다 기계적으로, 계획마다 사람 승인받기 선택), 분석 목록(상태·할 일·발견 개수·토큰) | `/sync`, `/index`, `/code-graph/*`, `POST·GET /analyses` |
+| **분석** `/analyses/:id` | 승인 대기(`WAITING_APPROVAL`) 중이면 계획 승인(할 일 빼기·승인·거절)과 승인 기록, 실시간 진행 상황(서버 이벤트 SSE, 끊기면 2초 폴링), 토큰 사용량, 발견 목록(Verifier 판정·근거 코드·공격 예시), 사람 검토, Planner 회차별 계획과 할 일별 결론, 에이전트 기록 타임라인, HTML·SARIF 보고서 | `GET /analyses/:id`, `/approve`, `/reject`, `/traces`, `/findings/:id/review`, `/verify`, `/report.*` |
 
 **에이전트 기록** 탭에서는 에이전트가 한 일을 순서대로 볼 수 있다. Claude가 무슨 생각을 했고, 어떤 도구를 불렀고, 무슨 결과를 받았는지가 나온다. 분석이 진행 중이면 새 기록을 자동으로 따라간다.
 
@@ -292,6 +301,7 @@ src/
     ├── ProjectPage.tsx       코드 그래프, 분석 시작
     ├── AnalysisPage.tsx      분석 진행·결과
     └── analysis/
+        ├── ApprovalCard.tsx  계획 승인(할 일 빼기·승인·거절)과 승인 기록
         ├── FindingList.tsx   발견, Verifier 판정, 사람 검토
         ├── IntentionList.tsx 할 일과 결론
         └── TraceTimeline.tsx 에이전트 기록 타임라인

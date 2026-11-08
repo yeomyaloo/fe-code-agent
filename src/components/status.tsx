@@ -4,8 +4,9 @@ import type { JobStatus, NodeStatus, ReviewDecision } from '../api/types'
 const JOB: Record<JobStatus, [string, Tone]> = {
   PENDING: ['대기', 'gray'],
   RUNNING: ['진행 중', 'blue'],
+  WAITING_APPROVAL: ['승인 대기', 'purple'],
   DONE: ['완료', 'green'],
-  STOPPED: ['중단 (예산 소진)', 'yellow'],
+  STOPPED: ['중단', 'yellow'],
   FAILED: ['실패', 'red'],
 }
 
@@ -19,6 +20,7 @@ const INTENTION: Partial<Record<NodeStatus, [string, Tone]>> = {
   CLAIMED: ['조사 중', 'blue'],
   DONE: ['완료', 'green'],
   FAILED: ['실패', 'red'],
+  SKIPPED: ['사람이 뺌', 'gray'],
 }
 
 export function IntentionStatusBadge({ status }: { status: NodeStatus }) {

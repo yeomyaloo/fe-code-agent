@@ -106,7 +106,13 @@ const sinkPaths: SinkPathView[] = [
 
 const goal: NodeView = {
   id: 400, kind: 'GOAL', status: 'DONE', title: 'vulnerable-app 보안 취약점 분석', body: '계획 담당이 할 일을 정함 (최대 3회차, 할 일 상한 10개)',
-  props: { planner: 'LLM', maxIntentions: 10, plannerRound: 2, planningFinished: true, finishedRound: 2, finishReason: '위험 경로 3개를 모두 조사했고, 후속 조사로 명령 실행 코드가 다른 곳에서 호출되지 않음을 확인함' },
+  props: { planner: 'LLM', maxIntentions: 10, plannerRound: 2, planningFinished: true, finishedRound: 2, finishReason: '위험 경로 3개를 모두 조사했고, 후속 조사로 명령 실행 코드가 다른 곳에서 호출되지 않음을 확인함',
+    requireApproval: true, approvedRound: 2,
+    approvals: [
+      { round: 1, decision: 'APPROVED', skipped: [], comment: '경로 3개 모두 조사', at: '2026-10-09T01:14:20Z' },
+      { round: 2, decision: 'APPROVED', skipped: [], comment: null, at: '2026-10-09T01:16:05Z' },
+    ],
+  },
   workerId: null,
 }
 
@@ -224,7 +230,17 @@ export const runningAnalysis: AnalysisView = {
   ],
 }
 
+/** 1회차 계획을 마치고 사람 승인을 기다리는 작업 #9 */
+export const waitingAnalysis: AnalysisView = {
+  job: { ...analysis.job, id: 9, status: 'WAITING_APPROVAL', usedTokens: 18_400, inputTokens: 16_900, outputTokens: 1_500, finishedAt: null },
+  nodes: [
+    { ...goal, props: { planner: 'LLM', maxIntentions: 10, plannerRound: 1, requireApproval: true, approvedRound: -1, approvals: [] } },
+    ...intentions.map((n) => ({ ...n, status: 'OPEN' as const, workerId: null })),
+  ],
+}
+
 export const analysisList: JobSummaryView[] = [
+  { job: waitingAnalysis.job, intentions: 4, intentionsFinished: 0, findings: { OPEN: 0, CONFIRMED: 0, REJECTED: 0, UNCERTAIN: 0 } },
   { job: runningAnalysis.job, intentions: 3, intentionsFinished: 0, findings: { OPEN: 0, CONFIRMED: 0, REJECTED: 0, UNCERTAIN: 0 } },
   { job: analysis.job, intentions: 4, intentionsFinished: 4, findings: { OPEN: 0, CONFIRMED: 2, REJECTED: 1, UNCERTAIN: 1 } },
   {
@@ -266,6 +282,8 @@ export const isApi = (url: URL) => url.pathname.startsWith('/api/')
 /** 모든 /api 요청을 예시 데이터로 응답한다. 기록한 검토 결과는 다음 조회에 반영한다 */
 export async function mockApi(page: Page) {
   const reviews = new Map<number, unknown>()
+  /** 작업 #9 에 내린 승인·거절. 다음 조회에 반영한다 */
+  let decision: Decision = {}
   const json = (route: Route, body: unknown, status = 200) =>
     route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) })
 
@@ -295,6 +313,17 @@ export async function mockApi(page: Page) {
     }
     if (path === '/api/analyses/7/traces' || path === '/api/analyses/8/traces') return json(route, traces)
     if (path === '/api/analyses/8') return json(route, runningAnalysis)
+    if (path === '/api/analyses/9/traces') return json(route, [])
+    if (path === '/api/analyses/9') return json(route, decided(waitingAnalysis, decision))
+    if (path === '/api/analyses/9/approve' && method === 'POST') {
+      if (decision.approve || decision.reject) return json(route, { title: 'Bad Request', status: 400, detail: '승인 대기 중인 작업이 아님: 9' }, 400)
+      decision = { approve: route.request().postDataJSON() }
+      return json(route, decided(waitingAnalysis, decision).job, 202)
+    }
+    if (path === '/api/analyses/9/reject' && method === 'POST') {
+      decision = { reject: route.request().postDataJSON() }
+      return json(route, decided(waitingAnalysis, decision).job)
+    }
 
     const review = path.match(/^\/api\/analyses\/7\/findings\/(\d+)\/review$/)
     if (review) {
@@ -305,4 +334,25 @@ export async function mockApi(page: Page) {
 
     return json(route, { title: 'Not Found', status: 404, detail: `예시 데이터 없음: ${method} ${path}` }, 404)
   })
+}
+
+type Decision = { approve?: { skipIntentionIds: number[]; comment: string | null }; reject?: { comment: string | null } }
+
+/** 승인하면 뺀 할 일은 SKIPPED, 작업은 RUNNING. 거절하면 남은 할 일은 SKIPPED, 작업은 STOPPED */
+function decided(view: AnalysisView, decision: Decision): AnalysisView {
+  if (!decision.approve && !decision.reject) return view
+  const skipped = decision.approve?.skipIntentionIds ?? view.nodes.filter((n) => n.kind === 'INTENTION').map((n) => n.id)
+  const comment = decision.approve?.comment ?? decision.reject?.comment ?? null
+  return {
+    job: decision.approve
+      ? { ...view.job, status: 'RUNNING' }
+      : { ...view.job, status: 'STOPPED', error: `사람이 계획을 거절함: ${comment ?? ''}`, finishedAt: '2026-10-09T01:15:00Z' },
+    nodes: view.nodes.map((n) => {
+      if (n.kind === 'GOAL') {
+        const record = { round: 1, decision: decision.approve ? 'APPROVED' : 'REJECTED', skipped, comment, at: '2026-10-09T01:15:00Z' }
+        return { ...n, props: { ...n.props, approvedRound: 1, approvals: [record] } }
+      }
+      return skipped.includes(n.id) ? { ...n, status: 'SKIPPED' as const } : n
+    }),
+  }
 }

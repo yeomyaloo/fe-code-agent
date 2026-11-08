@@ -65,13 +65,15 @@ test.describe('프로젝트 상세', () => {
   test('분석 목록을 백엔드에서 받아 보여준다', async ({ page }) => {
     await page.goto('/projects/1')
     const rows = page.getByRole('row')
-    await expect(rows).toHaveCount(4) // 머리글 + 3개
-    await expect(rows.nth(1)).toContainText('#8')
-    await expect(rows.nth(1)).toContainText('진행 중')
-    await expect(rows.nth(2)).toContainText('확정 2')
-    await expect(rows.nth(2)).toContainText('기각 1')
-    await expect(rows.nth(3)).toContainText('중단 (예산 소진)')
-    await rows.nth(2).getByRole('link', { name: '#7' }).click()
+    await expect(rows).toHaveCount(5) // 머리글 + 4개
+    await expect(rows.nth(1)).toContainText('#9')
+    await expect(rows.nth(1)).toContainText('승인 대기')
+    await expect(rows.nth(2)).toContainText('#8')
+    await expect(rows.nth(2)).toContainText('진행 중')
+    await expect(rows.nth(3)).toContainText('확정 2')
+    await expect(rows.nth(3)).toContainText('기각 1')
+    await expect(rows.nth(4)).toContainText('중단')
+    await rows.nth(3).getByRole('link', { name: '#7' }).click()
     await expect(page).toHaveURL(/\/analyses\/7$/)
   })
 
@@ -79,7 +81,7 @@ test.describe('프로젝트 상세', () => {
     await page.goto('/projects/1')
     const request = page.waitForRequest((r) => r.url().endsWith('/api/projects/1/analyses') && r.method() === 'POST')
     await page.getByRole('button', { name: '분석 시작' }).click()
-    expect((await request).postDataJSON()).toEqual({ planner: 'llm', maxIntentions: 10, budgetTokens: 2_000_000 })
+    expect((await request).postDataJSON()).toEqual({ planner: 'llm', maxIntentions: 10, budgetTokens: 2_000_000, requireApproval: true })
     await expect(page).toHaveURL(/\/analyses\/7$/)
   })
 
@@ -90,6 +92,14 @@ test.describe('프로젝트 상세', () => {
     const request = page.waitForRequest((r) => r.url().endsWith('/api/projects/1/analyses') && r.method() === 'POST')
     await page.getByRole('button', { name: '분석 시작' }).click()
     expect((await request).postDataJSON()).toMatchObject({ planner: 'paths', maxIntentions: 5 })
+  })
+
+  test('승인 단계를 끄고 시작할 수 있다', async ({ page }) => {
+    await page.goto('/projects/1')
+    await page.getByLabel('실행 전에 계획 승인받기').uncheck()
+    const request = page.waitForRequest((r) => r.url().endsWith('/api/projects/1/analyses') && r.method() === 'POST')
+    await page.getByRole('button', { name: '분석 시작' }).click()
+    expect((await request).postDataJSON()).toMatchObject({ requireApproval: false })
   })
 })
 
@@ -205,6 +215,35 @@ test.describe('분석 화면', () => {
     expect(analysisCalls[1] - analysisCalls[0]).toBeLessThan(1500)
     expect(tracesCalls).toBeGreaterThanOrEqual(1)
     releaseFinished()
+  })
+
+  test('승인 대기 중이면 할 일을 고르고 일부를 빼서 승인한다', async ({ page }) => {
+    await page.goto('/analyses/9')
+    const card = page.getByRole('region', { name: '계획 승인' })
+    await expect(card).toContainText('계획 1회차')
+    await expect(card.getByRole('checkbox')).toHaveCount(4)
+    await card.getByLabel('#402 조사하기').uncheck()
+    await card.getByLabel('메모 (선택)').fill('ping API는 범위 밖')
+    const request = page.waitForRequest((r) => r.url().endsWith('/api/analyses/9/approve'))
+    await card.getByRole('button', { name: '3건만 조사 (1건 빼기)' }).click()
+    expect((await request).postDataJSON()).toEqual({ skipIntentionIds: [402], comment: 'ping API는 범위 밖' })
+
+    await expect(page.getByRole('region', { name: '계획 승인' })).toHaveCount(0)
+    await expect(page.getByText('진행 중').first()).toBeVisible()
+    await page.getByRole('tab', { name: /할 일/ }).click()
+    await expect(page.getByText('사람이 뺌')).toBeVisible()
+    await expect(page.getByText('사람 승인 기록')).toBeVisible()
+    await expect(page.getByText('“ping API는 범위 밖”')).toBeVisible()
+  })
+
+  test('계획을 거절하면 작업이 멈춘다', async ({ page }) => {
+    await page.goto('/analyses/9')
+    page.once('dialog', (dialog) => dialog.accept())
+    const request = page.waitForRequest((r) => r.url().endsWith('/api/analyses/9/reject'))
+    await page.getByRole('button', { name: '거절하고 멈추기' }).click()
+    expect((await request).postDataJSON()).toEqual({ comment: null })
+    await expect(page.getByText('사람이 계획을 거절함')).toBeVisible()
+    await expect(page.getByRole('region', { name: '계획 승인' })).toHaveCount(0)
   })
 
   test('보고서 링크', async ({ page }) => {

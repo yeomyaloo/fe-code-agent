@@ -69,7 +69,8 @@ export interface SinkPathView {
   path: CodeNodeView[]
 }
 
-export type JobStatus = 'PENDING' | 'RUNNING' | 'DONE' | 'STOPPED' | 'FAILED'
+/** WAITING_APPROVAL: 계획이 나와서 사람 승인을 기다림 (Worker 를 돌리기 전) */
+export type JobStatus = 'PENDING' | 'RUNNING' | 'WAITING_APPROVAL' | 'DONE' | 'STOPPED' | 'FAILED'
 
 export interface JobView {
   id: number
@@ -95,7 +96,8 @@ export interface JobSummaryView {
 }
 
 export type NodeKind = 'GOAL' | 'INTENTION' | 'FACT' | 'FINDING' | 'HINT'
-export type NodeStatus = 'OPEN' | 'CLAIMED' | 'DONE' | 'FAILED' | 'CONFIRMED' | 'REJECTED' | 'UNCERTAIN'
+/** SKIPPED: 사람이 승인 단계에서 뺀 할 일 */
+export type NodeStatus = 'OPEN' | 'CLAIMED' | 'DONE' | 'FAILED' | 'SKIPPED' | 'CONFIRMED' | 'REJECTED' | 'UNCERTAIN'
 
 export interface Evidence {
   file: string
@@ -170,4 +172,20 @@ export interface StartAnalysisRequest {
   planner: PlannerMode
   maxIntentions: number
   budgetTokens: number
+  /** true 면 계획이 나올 때마다 Worker 를 돌리기 전에 사람 승인을 기다린다 */
+  requireApproval: boolean
+}
+
+/** 목표(GOAL) 노드 props.approvals 의 한 항목 */
+export interface ApprovalRecord {
+  round: number
+  decision: 'APPROVED' | 'REJECTED'
+  skipped: number[]
+  comment: string | null
+  at: string
+}
+
+export interface ApproveRequest {
+  skipIntentionIds: number[]
+  comment: string | null
 }

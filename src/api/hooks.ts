@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from './client'
 import type {
   AnalysisView,
+  ApproveRequest,
   CreateProjectRequest,
   EntryPointView,
   IndexResult,
@@ -21,6 +22,8 @@ import type {
 /** 진행 중인 작업은 2초마다 다시 불러온다 */
 const POLL_MS = 2000
 const isActive = (status?: JobStatus) => status === 'PENDING' || status === 'RUNNING'
+/** 아직 바뀔 수 있는 작업. 승인 대기 중이면 다른 사람이 승인해도 바로 보이도록 계속 지켜본다 */
+const isOpen = (status?: JobStatus) => isActive(status) || status === 'WAITING_APPROVAL'
 
 export const keys = {
   projects: ['projects'] as const,
@@ -114,7 +117,7 @@ export function useAnalysis(jobId: number, live = false) {
   return useQuery({
     queryKey: keys.analysis(jobId),
     queryFn: () => api.get<AnalysisView>(`/api/analyses/${jobId}`),
-    refetchInterval: (query) => (isActive(query.state.data?.job.status) && !live ? POLL_MS : false),
+    refetchInterval: (query) => (isOpen(query.state.data?.job.status) && !live ? POLL_MS : false),
   })
 }
 
@@ -195,4 +198,25 @@ export function useReview(jobId: number) {
   })
 }
 
-export { isActive }
+/** 승인 대기 중인 계획을 승인한다. skipIntentionIds 의 할 일은 빼고 진행한다 */
+export function useApprove(jobId: number) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (request: ApproveRequest) => api.post<JobView>(`/api/analyses/${jobId}/approve`, request),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: keys.analysis(jobId) }),
+  })
+}
+
+/** 계획을 거절하고 작업을 멈춘다 */
+export function useReject(jobId: number) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (comment: string | null) => api.post<JobView>(`/api/analyses/${jobId}/reject`, { comment }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: keys.analysis(jobId) })
+      queryClient.invalidateQueries({ queryKey: ['projects'] })
+    },
+  })
+}
+
+export { isActive, isOpen }
